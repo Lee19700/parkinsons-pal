@@ -1,7 +1,9 @@
 # Parkinson's Pal - Encryption Setup Guide
 
 ## Overview
+
 This application now includes **end-to-end encryption** for all medical data:
+
 - ✅ Server-side AES-256-GCM encryption at rest
 - ✅ Client-side encryption before transmission  
 - ✅ JWT-based authentication with secure tokens
@@ -94,12 +96,14 @@ MAX_BODY_MB=10
 ## Encryption Details
 
 ### AES-256-GCM
+
 - Algorithm: AES with 256-bit key
 - Mode: Galois/Counter Mode (GCM) for authenticated encryption
 - Authentication tag ensures data integrity
 - Random IV (Initialization Vector) for each encryption
 
 ### Protected Data
+
 The following sensitive information is now encrypted:
 - Medical documents (at rest + metadata encrypted)
 - Medication data (via encrypted_data field)
