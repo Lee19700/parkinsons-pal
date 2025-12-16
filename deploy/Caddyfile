@@ -1,0 +1,39 @@
+# Caddyfile configuration (not PowerShell)
+# For use with Caddy web server: https://caddyserver.com/docs/caddyfile
+{
+	# Optional: increase logging for debugging
+	# debug
+}
+
+# Serve the whole app on your domain with HTTPS via Let's Encrypt
+# Set DOMAIN in .env (e.g., parkipal.com)
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Hardened security headers
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		# Minimal CSP for API-only host; adjust if serving static assets here
+		Content-Security-Policy "default-src 'none'"
+	}
+
+		# API reverse proxy (blue/green via UPSTREAM env)
+		reverse_proxy {$UPSTREAM} {
+			header_up X-Forwarded-Proto {proto}
+			header_up X-Forwarded-For {remote_host}
+		}
+
+	# Automatic HTTPS/ACME uses EMAIL from env for registration
+	tls {$EMAIL} {
+		protocols tls1.2 tls1.3
+	}
+}
+
+# Explicit HTTP to HTTPS redirect
+http://{$DOMAIN} {
+	redir https://{$DOMAIN}{uri}
+}

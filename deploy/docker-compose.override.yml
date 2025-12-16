@@ -1,0 +1,14 @@
+services:
+  api:
+    environment:
+      - DB_URL=${DB_URL}
+      - PORT=${PORT}
+      - JWT_SECRET=${JWT_SECRET}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+  caddy:
+    environment:
+      - DOMAIN=${DOMAIN}
+      - EMAIL=${EMAIL}
+    ports:
+      - "80:80"
+      - "443:443"

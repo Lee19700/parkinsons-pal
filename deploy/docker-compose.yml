@@ -1,0 +1,73 @@
+version: '3.8'
+
+networks:
+  web:
+    external: false
+
+services:
+  db:
+    image: postgres:16
+    container_name: parkipal-db
+    environment:
+      POSTGRES_DB: ${PG_DB:-parkipal}
+      POSTGRES_USER: ${PG_USER:-parkipal}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-change-me}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks: [web]
+
+  api:
+    build:
+      context: ../backend
+    container_name: parkipal-api
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-replace-with-strong-secret}
+      DB_URL: postgres://${PG_USER:-parkipal}:${PG_PASSWORD:-change-me}@db:5432/${PG_DB:-parkipal}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://example.com}
+    depends_on:
+      - db
+    restart: unless-stopped
+    networks: [web]
+
+  api_next:
+    build:
+      context: ../backend
+    container_name: parkipal-api-next
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      JWT_SECRET: ${JWT_SECRET:-replace-with-strong-secret}
+      DB_URL: postgres://${PG_USER:-parkipal}:${PG_PASSWORD:-change-me}@db:5432/${PG_DB:-parkipal}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://example.com}
+    depends_on:
+      - db
+    restart: unless-stopped
+    networks: [web]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: parkipal-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-example.com}
+      EMAIL: ${EMAIL:-admin@example.com}
+      UPSTREAM: ${UPSTREAM:-api:3000}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../:/site:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - api_next
+    restart: unless-stopped
+    networks: [web]
+
+volumes:
+  caddy_data:
+  caddy_config:

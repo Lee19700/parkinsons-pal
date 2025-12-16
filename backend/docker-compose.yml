@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16
+    container_name: parkinsons-pal-postgres
+    environment:
+      POSTGRES_DB: parkipal
+      POSTGRES_USER: parkipal
+      POSTGRES_PASSWORD: change-me
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  parkinsons-api:
+    build: .
+    container_name: parkinsons-pal-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-8%,@w3W]}GH&L:QVbXM\$Ea09m</BgN}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-b29c590394fa2b36197724f6f84c7a4803592a4e79df945e3feb3c4aed7f5392}
+      - DB_URL=postgres://parkipal:change-me@db:5432/parkipal
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-*}
+    depends_on:
+      - db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
