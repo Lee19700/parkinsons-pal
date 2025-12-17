@@ -1,7 +1,8 @@
  // Database adapter: Postgres only
 const { Client } = require('pg');
 
-const DB_URL = process.env.DB_URL;
+// Heroku uses DATABASE_URL, local uses DB_URL
+const DB_URL = process.env.DATABASE_URL || process.env.DB_URL;
 let pg = null;
 
 async function init() {
