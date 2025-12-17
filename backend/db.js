@@ -9,7 +9,14 @@ async function init() {
   if (!DB_URL) {
     throw new Error('DB_URL must be set for Postgres.');
   }
-  pg = new Client({ connectionString: DB_URL });
+  // For Heroku: parse DATABASE_URL and enable SSL
+  const clientConfig = {
+    connectionString: DB_URL
+  };
+  if (process.env.NODE_ENV === 'production') {
+    clientConfig.ssl = { rejectUnauthorized: false };
+  }
+  pg = new Client(clientConfig);
   await pg.connect();
   await createSchemaPg();
 }
