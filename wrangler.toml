@@ -1,0 +1,10 @@
+{
+  "build": {
+    "command": "echo 'Static site - no build needed'",
+    "cwd": "/",
+    "destination": "/"
+  },
+  "env": {
+    "REACT_APP_API_URL": "https://parkinsons-pal-app-90e027931d23.herokuapp.com"
+  }
+}
