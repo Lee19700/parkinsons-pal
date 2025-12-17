@@ -5,8 +5,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const crypto = require('crypto');
 const dbAdapter = require('./db');
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const encryption = require('./encryption');
 
@@ -217,6 +217,19 @@ function authenticateToken(req, res, next) {
   });
 }
 
+// Helper functions for password hashing
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha256').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, storedHash) {
+  const [salt, hash] = storedHash.split(':');
+  const computedHash = crypto.pbkdf2Sync(password, salt, 10000, 64, 'sha256').toString('hex');
+  return computedHash === hash;
+}
+
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
   try {
@@ -226,7 +239,7 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ error: 'Username and password required' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = hashPassword(password);
     
     const result = await dbAdapter.run('INSERT INTO users (username, password_hash, display_name) VALUES ($1, $2, $3)', [username, passwordHash, display || username]);
     
@@ -252,7 +265,7 @@ app.post('/api/auth/login', async (req, res) => {
     
     const user = await dbAdapter.get('SELECT * FROM users WHERE username = $1', [username]);
     
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    if (!user || !verifyPassword(password, user.password_hash)) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
