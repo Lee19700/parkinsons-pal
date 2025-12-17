@@ -1,0 +1,11 @@
+[build]
+  publish = "."
+  command = "echo 'No build needed for static site'"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[context.production]
+  environment = { REACT_APP_API_URL = "https://parkinsons-pal-app-90e027931d23.herokuapp.com" }
