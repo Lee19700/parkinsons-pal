@@ -3,8 +3,8 @@
 
 (function() {
   // CONFIGURATION
-  // Prefer window.API_BASE_URL if set in HTML (e.g., Cloudflare Pages env injection)
-  // Fallback: for localhost use local API; else point to api.<domain>/api
+  // Prefer window.API_BASE_URL if set in HTML (e.g., Railway env injection)
+  // Fallback: for localhost use local API; else use same domain (/api)
   const API_BASE_URL = (function() {
     if (typeof window !== 'undefined' && window.API_BASE_URL) {
       return window.API_BASE_URL;
@@ -13,10 +13,9 @@
     if (host === 'localhost' || host === '127.0.0.1') {
       return 'http://localhost:3000/api';
     }
-    // Use api subdomain for production (e.g., parkipal.com → api.parkipal.com)
-    const baseDomain = host.replace(/^www\./, '');
+    // Use same domain with /api path (Railway, Docker, unified deployment)
     const protocol = (window.location && window.location.protocol) || 'https:';
-    return `${protocol}//api.${baseDomain}/api`;
+    return `${protocol}//${host}/api`;
   })();
   
   const TOKEN_KEY = 'pp_auth_token';

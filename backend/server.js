@@ -57,6 +57,20 @@ function rateLimiter(req, res, next) {
 }
 app.use(rateLimiter);
 
+// Serve static frontend files from parent directory (when deployed)
+const path = require('path');
+const frontendPath = path.join(__dirname, '..');
+app.use(express.static(frontendPath, {
+  setHeaders: (res, filePath) => {
+    // Don't cache HTML files; cache assets (js, css, etc) for 1 week
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=604800'); // 1 week
+    }
+  }
+}));
+
 app.use((req, res, next) => {
   if (!isReady && req.path !== '/api/health') {
     return res.status(503).json({ error: 'Service initializing' });
@@ -457,6 +471,11 @@ app.get('/api/access/patient/:patientId/records', authenticateToken, async (req,
   } catch (e) {
     res.status(500).json({ error: 'Failed to read patient records' });
   }
+});
+
+// SPA fallback: serve index.html for all non-API, non-static routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 // Start server
