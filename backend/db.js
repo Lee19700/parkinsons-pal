@@ -7,18 +7,23 @@ let pg = null;
 
 async function init() {
   if (!DB_URL) {
-    throw new Error('DB_URL must be set for Postgres.');
+    throw new Error('DATABASE_URL environment variable is not set');
   }
+  console.log('[DB] DATABASE_URL is set, connecting to PostgreSQL...');
   // For Heroku: parse DATABASE_URL and enable SSL
   const clientConfig = {
-    connectionString: DB_URL
+    connectionString: DB_URL,
+    connectionTimeoutMillis: 10000, // 10 second timeout
+    idleTimeoutMillis: 30000
   };
   if (process.env.NODE_ENV === 'production') {
     clientConfig.ssl = { rejectUnauthorized: false };
   }
   pg = new Client(clientConfig);
   await pg.connect();
+  console.log('[DB] Connected to PostgreSQL, creating schema...');
   await createSchemaPg();
+  console.log('[DB] Schema created, database ready');
 }
 
 async function close() {

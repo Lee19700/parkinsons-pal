@@ -491,7 +491,21 @@ app.get('*', (req, res) => {
 
 // Start server
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Parkinson's Pal API server running on port ${PORT}`);
+  console.log(`[SERVER] Parkinson's Pal API server running on port ${PORT}`);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('[FATAL] Uncaught exception:', error.message);
+  console.error('[FATAL] Stack:', error.stack);
+  process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled rejection at promise:', promise);
+  console.error('[FATAL] Reason:', reason);
+  process.exit(1);
 });
 
 function shutdown() {
