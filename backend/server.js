@@ -19,6 +19,11 @@ const MAX_BODY_MB = parseInt(process.env.MAX_BODY_MB || '10', 10); // request bo
 const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10); // 1 minute
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '120', 10); // 120 requests per window per IP
 let isReady = false;
+console.log('[STARTUP] Loading environment variables...');
+console.log(`[STARTUP] NODE_ENV: ${process.env.NODE_ENV}`);
+console.log(`[STARTUP] PORT: ${process.env.PORT || 3000}`);
+console.log(`[STARTUP] DATABASE_URL set: ${!!process.env.DATABASE_URL}`);
+
 // Init DB (Postgres only)
 (async () => {
   try {

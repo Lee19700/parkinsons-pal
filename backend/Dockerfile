@@ -10,18 +10,19 @@ WORKDIR /app
 # Install dependencies first (use package.json + package-lock.json if present)
 COPY package.json package-lock.json* ./
 RUN npm ci --only=production || npm install --only=production
+
 # Copy source (node_modules excluded by .dockerignore)
 COPY . ./
+
 # Safety: ensure bcrypt is built for container architecture
 RUN npm rebuild bcrypt --build-from-source || true
 
-# Harden container: run as non-root and set production env
-ENV NODE_ENV=production
+# Harden container: run as non-root
 RUN chown -R node:node /app
 USER node
 
-# Expose port
-EXPOSE 3000
+# Expose port (Railway will override via PORT env var)
+EXPOSE 3000 8080
 
 # Start the server
 CMD ["npm", "start"]
