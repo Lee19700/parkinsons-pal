@@ -20,7 +20,18 @@ const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '120', 10); // 120 requests per window per IP
 let isReady = false;
 // Init DB (Postgres only)
-(async () => { await dbAdapter.init(); isReady = true; })();
+(async () => {
+  try {
+    console.log('[DB] Initializing database connection...');
+    await dbAdapter.init();
+    isReady = true;
+    console.log('[DB] Database initialized successfully');
+  } catch (error) {
+    console.error('[DB] Failed to initialize database:', error.message);
+    console.error('[DB] Full error:', error);
+    process.exit(1);
+  }
+})();
 
 // Middleware
 app.use(helmet({
