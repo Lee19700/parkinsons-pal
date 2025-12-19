@@ -24,19 +24,52 @@ console.log(`[STARTUP] NODE_ENV: ${process.env.NODE_ENV}`);
 console.log(`[STARTUP] PORT: ${process.env.PORT || 3000}`);
 console.log(`[STARTUP] DATABASE_URL set: ${!!process.env.DATABASE_URL}`);
 
-// Init DB (Postgres only)
-(async () => {
+// Start server only after DB is ready
+async function startServer() {
   try {
     console.log('[DB] Initializing database connection...');
     await dbAdapter.init();
     isReady = true;
     console.log('[DB] Database initialized successfully');
+    
+    // NOW start listening
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`[SERVER] Parkinson's Pal API server running on port ${PORT}`);
+    });
+    
+    // Handle uncaught exceptions
+    process.on('uncaughtException', (error) => {
+      console.error('[FATAL] Uncaught exception:', error.message);
+      console.error('[FATAL] Stack:', error.stack);
+      process.exit(1);
+    });
+
+    // Handle unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('[FATAL] Unhandled rejection at promise:', promise);
+      console.error('[FATAL] Reason:', reason);
+      process.exit(1);
+    });
+
+    function shutdown() {
+      server.close(async () => {
+        try { await dbAdapter.close(); } catch {}
+        process.exit(0);
+      });
+    }
+
+    process.on('SIGTERM', shutdown);
+    process.on('SIGINT', shutdown);
   } catch (error) {
     console.error('[DB] Failed to initialize database:', error.message);
     console.error('[DB] Full error:', error);
+    console.error('[DB] DATABASE_URL:', process.env.DATABASE_URL);
     process.exit(1);
   }
-})();
+}
+
+// Start the app
+startServer();
 
 // Middleware
 app.use(helmet({
@@ -493,32 +526,3 @@ app.get('/api/access/patient/:patientId/records', authenticateToken, async (req,
 app.get('*', (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
-
-// Start server
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[SERVER] Parkinson's Pal API server running on port ${PORT}`);
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('[FATAL] Uncaught exception:', error.message);
-  console.error('[FATAL] Stack:', error.stack);
-  process.exit(1);
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('[FATAL] Unhandled rejection at promise:', promise);
-  console.error('[FATAL] Reason:', reason);
-  process.exit(1);
-});
-
-function shutdown() {
-  server.close(async () => {
-    try { await dbAdapter.close(); } catch {}
-    process.exit(0);
-  });
-}
-
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
