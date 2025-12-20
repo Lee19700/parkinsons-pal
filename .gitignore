@@ -1,0 +1,42 @@
+# Environment variables - NEVER commit to version control
+.env
+.env.local
+.env.*.local
+backend/.env
+deploy/.env
+
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+dist/
+build/
+*.tgz
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# Database files (local development only)
+backend/data/postgres/
+*.db
+*.sqlite
+
+# Sensitive files
+KEYS_AND_DEPLOYMENT.txt
+*.key
+*.pem
