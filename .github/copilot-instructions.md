@@ -3,12 +3,13 @@
 These instructions help AI agents work productively in this codebase. Keep changes minimal, align with existing patterns, and prefer incremental improvements over sweeping refactors.
 
 ## Architecture Overview
-- **Frontend:** Static HTML/JS in project root (e.g., `medications.html`, `symptoms.js`, `nav.js`). Pages fetch JSON from backend and update DOM directly; no frameworks.
-- **Backend:** Node.js Express API in `backend/` with entry `backend/server.js`.
-- **Database:** PostgreSQL via `backend/db.js` (`pg`). Adapter exposes `init()`, `get()`, `all()`, `run()` mirroring better-sqlite3 semantics; use `$1` placeholders.
-- **Routes:** Resource modules in `backend/routes/` (`symptoms.js`, `fluids.js`, `foods.js`, `exercises.js`, `appointments.js`, `documents.js`) mounted from `server.js`.
-- **Auth:** JWT endpoints in `server.js` (`/api/auth/register`, `/api/auth/login`). `authenticateToken` protects user data routes.
-- **Access Grants:** Doctor sharing via `/api/access/*` in `server.js`, backed by `access_grants`.
+- **Frontend:** Static HTML/JS in project root (e.g., `medications.html`, `symptoms.js`, `nav.js`). Pages use `api-client.js` to fetch/update JSON from backend; no frameworks.
+- **Backend:** Node.js Express API in `backend/server.js` with PostgreSQL via `backend/db.js` adapter.
+- **Routes:** Split into two patterns:
+  - **Modular routes** in `backend/routes/` (`symptoms.js`, `fluids.js`, `foods.js`, `exercises.js`, `appointments.js`, `documents.js`) — each exports `(app, db, authenticateToken)`.
+  - **Inline endpoints** in `backend/server.js` (`/api/medications`, `/api/med_logs`, `/api/vitals`, auth, access grants).
+- **Auth:** JWT in `server.js` (`/api/auth/register`, `/api/auth/login`). `authenticateToken` middleware validates bearer tokens and attaches `req.user.id`.
+- **Access Grants:** Doctor/caregiver sharing via `/api/access/grants` and `/api/access/revoke` backed by `access_grants` table.
 
 ## Data Model & Conventions
 - **Schema creation:** `db.init()` calls `createSchemaPg()` at server start; tables include `users`, `medications`, `med_logs`, `vitals`, `symptoms`, `fluids`, `foods`, `exercises`, `appointments`, `documents`, `access_grants`.
@@ -25,25 +26,31 @@ These instructions help AI agents work productively in this codebase. Keep chang
 - **Encryption:** `backend/encryption.js` provides `encrypt(data)` → `{ iv, authTag, encrypted }` and `decrypt(encryptedData)` using AES-256-GCM. Used in `documents.js` for sensitive metadata. Always require `ENCRYPTION_KEY` (64 hex chars) in environment.
 
 ## Frontend Patterns
-- **Simple fetch:** Scripts call `/api/...` and expect `{ ok: true, id }` on creation or arrays for lists. Update DOM in-place.
-- **View pairing:** Each `*.html` has a matching `*.js` for view logic (e.g., `appointments.html` ↔ `appointments.js`). Follow naming/placement when adding features.
+- **API wrapper:** `api-client.js` provides `window.pp.api.*` methods (registers, logs in, fetches resources, creates/deletes items). Auto-handles Bearer token from localStorage key `pp_auth_token`.
+- **Endpoint discovery:** Scripts use `api-client.js` for all backend calls; fallback logic detects `localhost:3000` vs. same-origin `/api` paths.
+- **Simple fetch + DOM update:** No frameworks. Fetch JSON, parse, update DOM in-place. Example: `symptoms.js` loads from `/api/symptoms`, renders list in container.
+- **Two storage patterns exist (legacy + migration):**
+  - **localStorage-only (legacy):** Some older scripts (e.g., original `symptoms.js`) read/write `STORAGE_KEY` directly without API calls; used during prototyping.
+  - **API-backed (current):** New features use `api-client.js` to call backend. Migration script `migrate-to-api.js` moves localStorage data to PostgreSQL on startup.
+- **View pairing:** Most `*.html` files have matching `*.js` for view logic (e.g., `appointments.html` ↔ `appointments.js`); some share helpers (e.g., `med_log.js` for medication logging across multiple views).
+- **Response expectations:** Backend returns `{ ok: true, id: <inserted-id> }` on create/delete, or arrays for lists. Error responses are `{ error: '<message>' }` with HTTP status 400–500.
 
 ## Developer Workflows
-- **Environment:** Requires Postgres. Set in `.env`: `DB_URL`, `PORT` (default 3000), `JWT_SECRET` (32+ chars), `ENCRYPTION_KEY` (64 hex), `ALLOWED_ORIGINS` (comma-separated), `NODE_ENV`.
+- **Environment:** Requires PostgreSQL. Set in `.env`: `DATABASE_URL` (or `DB_URL` for local), `PORT` (default 3000), `JWT_SECRET` (32+ chars), `ENCRYPTION_KEY` (64 hex chars), `ALLOWED_ORIGINS` (comma-separated), `NODE_ENV`.
 - **Start backend:**
   - Dev: `cd backend && npm install && npm run dev` (uses nodemon)
-  - Prod: `cd backend && npm start`
-- **Windows:** See `backend/SETUP-WINDOWS.md` and `backend/start.bat` for local run guidance.
-- **Docker (local Postgres):** `docker-compose -f backend/docker-compose.yml up`
-- **Docker (production):** See `deploy/docker-compose.yml` and `deploy/Caddyfile` in `deploy/README.md`.
-- **Quick checks:**
-  - Smoke test: `scripts/smoke-test.ps1`
-  - Backups: `scripts/backup.ps1` / `scripts/backup.sh` (scheduled via `scripts/scheduler/backup-task.xml`)
+  - Prod: `node backend/server.js`
+- **Windows setup:** See `backend/SETUP-WINDOWS.md`; Docker alternative: `docker-compose -f backend/docker-compose.yml up`
+- **Startup sequence:** `server.js` loads `.env` first, then calls `db.init()` which connects PostgreSQL and runs `createSchemaPg()` to create all tables. Server only starts listening after DB is ready.
+- **Data migration:** On first API call from frontend, `migrate-to-api.js` (loaded in HTML) runs silently, moving user's localStorage data (med logs, symptoms, etc.) to PostgreSQL. No user action required.
+- **Production checklist:** See `RAILWAY-SETUP-COMPLETE.md`, `DEPLOYMENT_COMPLETE.md`, and `deploy/README.md` for Docker, Caddy reverse proxy, and environment variable setup.
 
-## Integration Points
-- **Add routes:** Create under `backend/routes/` and require from `backend/server.js` after other imports.
-- **DB adapter:** Use `db.get`, `db.all`, `db.run` for all SQL access; keep queries centralized and parameterized.
-- **Access grants:** For cross-user reads, validate an active grant via `access_grants` logic in `server.js` before returning data.
+## Integration Points & Adding Features
+- **Add modular routes:** Create `backend/routes/newresource.js` exporting `function(app, db, authenticateToken)`. Require it at `backend/server.js` line ~456 after other route imports.
+- **Add inline endpoints:** For small endpoints (e.g., vitals, medications), add directly in `backend/server.js` around line 360–450 near similar endpoints.
+- **DB queries:** Use `db.get()`, `db.all()`, `db.run()` with `$1`, `$2` placeholders and parameter arrays. Always filter by `req.user.id` for user-scoped resources.
+- **Access grants:** Validate cross-user reads via `access_grants` table logic in `server.js` (lines ~490–520) before returning patient data.
+- **Frontend API calls:** Use `api-client.js` methods like `window.pp.api.get()`, `.post()`, `.delete()` which handle Bearer token and error parsing automatically.
 
 ## Deployment
 - **Docker (backend/):** `backend/docker-compose.yml` for local Postgres; configure `DB_URL` accordingly.

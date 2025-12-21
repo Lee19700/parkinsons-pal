@@ -23,6 +23,11 @@ console.log('[STARTUP] Loading environment variables...');
 console.log(`[STARTUP] NODE_ENV: ${process.env.NODE_ENV}`);
 console.log(`[STARTUP] PORT: ${process.env.PORT || 3000}`);
 console.log(`[STARTUP] DATABASE_URL set: ${!!process.env.DATABASE_URL}`);
+if (process.env.DATABASE_URL) {
+  const dbUrlMasked = process.env.DATABASE_URL.replace(/(:\/\/[^:]+:)[^@]+(@)/, '$1***$2');
+  console.log(`[STARTUP] DATABASE_URL preview: ${dbUrlMasked.substring(0, 100)}...`);
+  console.log(`[STARTUP] DATABASE_URL length: ${process.env.DATABASE_URL.length}`);
+}
 
 // Start server only after DB is ready
 async function startServer() {

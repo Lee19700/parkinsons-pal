@@ -9,7 +9,11 @@ async function init() {
   if (!DB_URL) {
     throw new Error('DATABASE_URL environment variable is not set');
   }
+  // Log the full DATABASE_URL for debugging (mask password)
+  const maskedUrl = DB_URL.replace(/(:\/\/[^:]+:)[^@]+(@)/, '$1***$2');
   console.log('[DB] DATABASE_URL is set, connecting to PostgreSQL...');
+  console.log('[DB] Full connection string:', maskedUrl);
+  console.log('[DB] DB_URL length:', DB_URL.length);
   // For Heroku: parse DATABASE_URL and enable SSL
   const clientConfig = {
     connectionString: DB_URL,
