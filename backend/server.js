@@ -362,7 +362,7 @@ app.get('/api/user/profile', authenticateToken, async (req, res) => {
 app.put('/api/user/profile', authenticateToken, async (req, res) => {
   try {
     const { display_name, full_name, email, phone, dob, emergency_contact, notes } = req.body;
-    await dbAdapter.get('UPDATE users SET display_name = $1, full_name = $2, email = $3, phone = $4, dob = $5, emergency_contact = $6, notes = $7 WHERE id = $8', [display_name, full_name, email, phone, dob, emergency_contact, notes, req.user.id]);
+    await dbAdapter.run('UPDATE users SET display_name = $1, full_name = $2, email = $3, phone = $4, dob = $5, emergency_contact = $6, notes = $7 WHERE id = $8', [display_name, full_name, email, phone, dob, emergency_contact, notes, req.user.id]);
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update profile' });
@@ -392,7 +392,7 @@ app.post('/api/medications', authenticateToken, async (req, res) => {
 app.put('/api/medications/:id', authenticateToken, async (req, res) => {
   try {
     const { name, dosage, times, stock, notes } = req.body;
-    await dbAdapter.get('UPDATE medications SET name = $1, dosage = $2, times = $3, stock = $4, notes = $5 WHERE id = $6 AND user_id = $7', [name, dosage, times, stock, notes, req.params.id, req.user.id]);
+    await dbAdapter.run('UPDATE medications SET name = $1, dosage = $2, times = $3, stock = $4, notes = $5 WHERE id = $6 AND user_id = $7', [name, dosage, times, stock, notes, req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to update medication' });
@@ -450,7 +450,7 @@ app.post('/api/medlogs', authenticateToken, async (req, res) => {
 
 app.delete('/api/medlogs/:id', authenticateToken, async (req, res) => {
   try {
-    await dbAdapter.get('DELETE FROM med_logs WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    await dbAdapter.run('DELETE FROM med_logs WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete med log' });

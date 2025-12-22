@@ -13,7 +13,7 @@ git push origin main
 
 ## Step 2: Sign Up on Railway (2 min)
 
-1. Go to https://railway.app
+1. Go to <https://railway.app>
 2. Click "Start Project"
 3. Choose "Deploy from GitHub"
 4. Authorize GitHub
@@ -22,6 +22,7 @@ git push origin main
 ## Step 3: Railway Auto-Setup (2 min)
 
 Railway detects Node.js automatically. You'll see:
+
 - ✅ Your app detected
 - ✅ Build started
 
@@ -46,7 +47,7 @@ ENCRYPTION_KEY
 b29c590394fa2b36197724f6f84c7a4803592a4e79df945e3feb3c4aed7f5392
 
 ALLOWED_ORIGINS
-https://[REPLACE-WITH-YOUR-RAILWAY-DOMAIN].up.railway.app
+https://[parkipal-com-DOMAIN].up.railway.app
 
 NODE_ENV
 production
