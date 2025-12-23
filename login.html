@@ -144,7 +144,25 @@
         
         <div class="login-footer">
           <p>No account? <a id="show-register">Create one</a></p>
+          <p style="margin-top: 12px; font-size: 14px;"><a id="forgot-link">Forgot password?</a></p>
         </div>
+      </div>
+
+      <div id="forgot-form" class="hidden">
+        <p style="color: #64748b; margin-bottom: 20px; text-align: center;">
+          Enter your username to receive a password reset link.
+        </p>
+        
+        <div class="login-form-group">
+          <label for="forgot-username">Username</label>
+          <input id="forgot-username" type="text" placeholder="Enter your username" autocomplete="username">
+        </div>
+        
+        <div id="forgot-error" class="login-error"></div>
+        <div id="forgot-success" class="login-error" style="background: #efe; border-color: #cfc; color: #3c3;"></div>
+        
+        <button id="forgot-submit" class="login-btn">Send Reset Link</button>
+        <button id="forgot-cancel" class="login-btn cancel-btn">Back to Log In</button>
       </div>
 
       <div id="register-form" class="hidden">
@@ -354,6 +372,113 @@
               errorDiv.textContent = 'Registration failed: ' + err.message;
               errorDiv.classList.add('show');
             }
+          }
+        });
+      }
+      
+      // Forgot password link
+      var forgotLink = document.getElementById('forgot-link');
+      var forgotForm = document.getElementById('forgot-form');
+      if (forgotLink) {
+        forgotLink.addEventListener('click', function(e) {
+          e.preventDefault();
+          console.log('Showing forgot password form');
+          loginForm.classList.add('hidden');
+          forgotForm.classList.remove('hidden');
+        });
+      }
+      
+      // Cancel forgot password
+      var cancelForgotBtn = document.getElementById('forgot-cancel');
+      if (cancelForgotBtn) {
+        cancelForgotBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          console.log('Showing login form');
+          forgotForm.classList.add('hidden');
+          loginForm.classList.remove('hidden');
+          // Clear forgot form
+          var forgotUsername = document.getElementById('forgot-username');
+          var forgotError = document.getElementById('forgot-error');
+          var forgotSuccess = document.getElementById('forgot-success');
+          if (forgotUsername) forgotUsername.value = '';
+          if (forgotError) {
+            forgotError.textContent = '';
+            forgotError.classList.remove('show');
+          }
+          if (forgotSuccess) {
+            forgotSuccess.textContent = '';
+            forgotSuccess.classList.remove('show');
+          }
+        });
+      }
+      
+      // Forgot password submit
+      var forgotSubmitBtn = document.getElementById('forgot-submit');
+      if (forgotSubmitBtn) {
+        forgotSubmitBtn.addEventListener('click', async function() {
+          console.log('Forgot password submit clicked');
+          var username = document.getElementById('forgot-username').value.trim();
+          var forgotError = document.getElementById('forgot-error');
+          var forgotSuccess = document.getElementById('forgot-success');
+          
+          // Clear previous messages
+          if (forgotError) {
+            forgotError.textContent = '';
+            forgotError.classList.remove('show');
+          }
+          if (forgotSuccess) {
+            forgotSuccess.textContent = '';
+            forgotSuccess.classList.remove('show');
+          }
+          
+          if (!username) {
+            if (forgotError) {
+              forgotError.textContent = 'Please enter your username';
+              forgotError.classList.add('show');
+            }
+            return;
+          }
+          
+          try {
+            console.log('Calling forgotPassword API for username:', username);
+            var response = await window.pp.api.forgotPassword(username);
+            
+            if (response && response.ok !== false) {
+              console.log('Password reset email sent');
+              if (forgotSuccess) {
+                forgotSuccess.textContent = 'Password reset link sent! Check your email.';
+                forgotSuccess.classList.add('show');
+              }
+              // Clear input
+              document.getElementById('forgot-username').value = '';
+              // Redirect to login after 3 seconds
+              setTimeout(function() {
+                console.log('Redirecting back to login');
+                forgotForm.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+              }, 3000);
+            } else {
+              if (forgotError) {
+                forgotError.textContent = response.error || 'Failed to process password reset request';
+                forgotError.classList.add('show');
+              }
+            }
+          } catch (err) {
+            console.error('Forgot password error:', err);
+            if (forgotError) {
+              forgotError.textContent = 'Error: ' + (err.message || 'Failed to send reset email');
+              forgotError.classList.add('show');
+            }
+          }
+        });
+      }
+      
+      // Enter key support for forgot password
+      var forgotUsernameField = document.getElementById('forgot-username');
+      if (forgotUsernameField && forgotSubmitBtn) {
+        forgotUsernameField.addEventListener('keypress', function(e) {
+          if (e.key === 'Enter' || e.keyCode === 13) {
+            forgotSubmitBtn.click();
           }
         });
       }

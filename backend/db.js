@@ -159,6 +159,14 @@ async function createSchemaPg() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      token TEXT UNIQUE NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    );
+
     -- Add encrypted data columns for medical information
     ALTER TABLE medications ADD COLUMN IF NOT EXISTS encrypted_data JSONB;
     ALTER TABLE symptoms ADD COLUMN IF NOT EXISTS encrypted_data JSONB;

@@ -23,7 +23,7 @@ module.exports = function(app, db, authenticateToken) {
   app.put('/api/appointments/:id', authenticateToken, async (req, res) => {
     try {
       const { title, timestamp, location, notes } = req.body;
-      await db.get('UPDATE appointments SET title = $1, timestamp = $2, location = $3, notes = $4 WHERE id = $5 AND user_id = $6', [
+      await db.run('UPDATE appointments SET title = $1, timestamp = $2, location = $3, notes = $4 WHERE id = $5 AND user_id = $6', [
         title, timestamp, location, notes, req.params.id, req.user.id
       ]);
       res.json({ ok: true });
@@ -34,7 +34,7 @@ module.exports = function(app, db, authenticateToken) {
 
   app.delete('/api/appointments/:id', authenticateToken, async (req, res) => {
     try {
-      await db.get('DELETE FROM appointments WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+      await db.run('DELETE FROM appointments WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
       res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete appointment' });

@@ -23,7 +23,8 @@ module.exports = function(app, db, authenticateToken) {
 
   app.delete('/api/symptoms/:id', authenticateToken, async (req, res) => {
     try {
-      await db.get('DELETE FROM symptoms WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+
+      await db.run('DELETE FROM symptoms WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
       res.json({ ok: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed to delete symptom' });

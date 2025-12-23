@@ -109,6 +109,20 @@
       window.location.href = 'login.html';
     },
 
+    async forgotPassword(username) {
+      return await apiRequest('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ username })
+      });
+    },
+
+    async resetPassword(resetToken, newPassword) {
+      return await apiRequest('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ resetToken, newPassword })
+      });
+    },
+
     getCurrentUser() {
       try {
         return JSON.parse(localStorage.getItem(USER_KEY));
