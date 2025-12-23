@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const dbAdapter = require('./db');
 const jwt = require('jsonwebtoken');
 const encryption = require('./encryption');
+const { initEmailService, sendPasswordResetEmail, sendWelcomeEmail } = require('./email');
 
 const app = express();
 // Behind a reverse proxy (e.g., Caddy), trust the first hop for IPs
@@ -18,6 +19,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret-key';
 const MAX_BODY_MB = parseInt(process.env.MAX_BODY_MB || '10', 10); // request body size limit in MB
 const RATE_LIMIT_WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10); // 1 minute
 const RATE_LIMIT_MAX = parseInt(process.env.RATE_LIMIT_MAX || '120', 10); // 120 requests per window per IP
+const LOGIN_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const LOGIN_RATE_LIMIT_MAX = 5; // 5 failed attempts per 15 minutes
 let isReady = false;
 console.log('[STARTUP] Loading environment variables...');
 console.log(`[STARTUP] NODE_ENV: ${process.env.NODE_ENV}`);
@@ -37,9 +40,19 @@ async function startServer() {
     isReady = true;
     console.log('[DB] Database initialized successfully');
     
+    // Initialize email service
+    console.log('[EMAIL] Initializing email service...');
+    await initEmailService();
+    
     // NOW start listening
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`[SERVER] Parkinson's Pal API server running on port ${PORT}`);
+      console.log('[SERVER] Ready to accept requests');
+    });
+    
+    server.on('error', (err) => {
+      console.error('[SERVER] Server error:', err.message);
+      process.exit(1);
     });
     
     // Handle uncaught exceptions
@@ -51,20 +64,31 @@ async function startServer() {
 
     // Handle unhandled promise rejections
     process.on('unhandledRejection', (reason, promise) => {
-      console.error('[FATAL] Unhandled rejection at promise:', promise);
-      console.error('[FATAL] Reason:', reason);
+      console.error('[FATAL] Unhandled rejection:', reason?.message || reason);
+      console.error('[FATAL] Stack:', reason?.stack);
       process.exit(1);
     });
 
     function shutdown() {
-      server.close(async () => {
-        try { await dbAdapter.close(); } catch {}
+      console.log('[SERVER] Shutting down...');
+      server.close(() => {
+        console.log('[SERVER] Server closed, exiting...');
         process.exit(0);
       });
+      setTimeout(() => {
+        console.error('[SERVER] Forced exit after timeout');
+        process.exit(0);
+      }, 5000);
     }
 
-    process.on('SIGTERM', shutdown);
-    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', () => {
+      console.log('[SERVER] Received SIGTERM');
+      shutdown();
+    });
+    process.on('SIGINT', () => {
+      console.log('[SERVER] Received SIGINT');
+      shutdown();
+    });
   } catch (error) {
     console.error('[DB] Failed to initialize database:', error.message);
     console.error('[DB] Full error:', error);
@@ -72,9 +96,6 @@ async function startServer() {
     process.exit(1);
   }
 }
-
-// Start the app
-startServer();
 
 // Middleware
 app.use(helmet({
@@ -95,6 +116,8 @@ app.use(express.json({ limit: `${MAX_BODY_MB}mb` }));
 
 // Basic rate limiting (per-IP, in-memory)
 const reqCounts = new Map();
+const loginAttempts = new Map();
+
 function rateLimiter(req, res, next) {
   const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
   const now = Date.now();
@@ -109,6 +132,21 @@ function rateLimiter(req, res, next) {
   }
   next();
 }
+
+function loginRateLimiter(req, res, next) {
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+  const now = Date.now();
+  let entry = loginAttempts.get(ip);
+  if (!entry || now - entry.windowStart >= LOGIN_RATE_LIMIT_WINDOW_MS) {
+    entry = { windowStart: now, count: 0 };
+    loginAttempts.set(ip, entry);
+  }
+  if (entry.count >= LOGIN_RATE_LIMIT_MAX) {
+    return res.status(429).json({ error: 'Too many login attempts. Please try again in 15 minutes.' });
+  }
+  next();
+}
+
 app.use(rateLimiter);
 
 // Serve static frontend files from parent directory (when deployed)
@@ -303,15 +341,37 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const { username, password, display } = req.body;
     
+    // Input validation
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
+    }
+
+    if (username.length < 3) {
+      return res.status(400).json({ error: 'Username must be at least 3 characters' });
+    }
+
+    if (username.length > 50) {
+      return res.status(400).json({ error: 'Username must not exceed 50 characters' });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    if (password.length > 128) {
+      return res.status(400).json({ error: 'Password must not exceed 128 characters' });
+    }
+
+    // Basic password complexity check
+    if (!/[a-z]/.test(password) || !/[A-Z]/.test(password) || !/\d/.test(password)) {
+      return res.status(400).json({ error: 'Password must contain uppercase, lowercase, and numbers' });
     }
 
     const passwordHash = hashPassword(password);
     
     const result = await dbAdapter.run('INSERT INTO users (username, password_hash, display_name) VALUES ($1, $2, $3)', [username, passwordHash, display || username]);
     
-    const token = jwt.sign({ id: result.lastInsertRowid, username }, JWT_SECRET, { expiresIn: '7d' });
+    const token = jwt.sign({ id: result.lastInsertRowid, username }, JWT_SECRET, { expiresIn: '24h' });
     
     res.json({ 
       ok: true, 
@@ -327,17 +387,34 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginRateLimiter, async (req, res) => {
   try {
     const { username, password } = req.body;
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.connection.remoteAddress || 'unknown';
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Username and password required' });
+    }
     
     const user = await dbAdapter.get('SELECT * FROM users WHERE username = $1', [username]);
     
     if (!user || !verifyPassword(password, user.password_hash)) {
+      // Increment failed login counter
+      const now = Date.now();
+      let entry = loginAttempts.get(ip);
+      if (!entry || now - entry.windowStart >= LOGIN_RATE_LIMIT_WINDOW_MS) {
+        entry = { windowStart: now, count: 0 };
+      }
+      entry.count += 1;
+      loginAttempts.set(ip, entry);
+      
       return res.status(401).json({ error: 'Invalid credentials' });
     }
     
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+    // Clear login attempts on successful login
+    loginAttempts.delete(ip);
+    
+    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '24h' });
     
     res.json({ 
       ok: true, 
@@ -346,6 +423,100 @@ app.post('/api/auth/login', async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+// Password Reset Routes
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { username } = req.body;
+    
+    if (!username) {
+      return res.status(400).json({ error: 'Username required' });
+    }
+    
+    const user = await dbAdapter.get('SELECT id, email FROM users WHERE username = $1', [username]);
+    
+    if (!user) {
+      // Don't reveal if user exists (security best practice)
+      return res.status(200).json({ ok: true, message: 'If user exists, reset email would be sent' });
+    }
+
+    if (!user.email) {
+      // User exists but no email on file
+      return res.status(200).json({ ok: true, message: 'If user exists, reset email would be sent' });
+    }
+    
+    // Generate a secure reset token (valid for 1 hour)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    
+    await dbAdapter.run(
+      'INSERT INTO password_reset_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)',
+      [user.id, resetToken, expiresAt]
+    );
+    
+    // Build reset URL
+    const appUrl = process.env.APP_URL || 'https://parkinsonspal.app';
+    const resetUrl = `${appUrl}/reset-password.html?token=${resetToken}`;
+    
+    // Send email
+    const emailResult = await sendPasswordResetEmail(user.email, username, resetToken, resetUrl);
+    
+    if (emailResult.success) {
+      return res.status(200).json({ ok: true, message: 'Password reset email sent' });
+    }
+    
+    // Email failed, but don't reveal why
+    return res.status(200).json({ ok: true, message: 'If user exists, reset email would be sent' });
+  } catch (error) {
+    console.error('[AUTH] Password reset request failed:', error);
+    res.status(500).json({ error: 'Password reset request failed' });
+  }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { resetToken, newPassword } = req.body;
+    
+    if (!resetToken || !newPassword) {
+      return res.status(400).json({ error: 'Reset token and new password required' });
+    }
+    
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+    
+    if (!/[a-z]/.test(newPassword) || !/[A-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      return res.status(400).json({ error: 'Password must contain uppercase, lowercase, and numbers' });
+    }
+    
+    const now = new Date().toISOString();
+    const tokenRecord = await dbAdapter.get(
+      'SELECT * FROM password_reset_tokens WHERE token = $1 AND expires_at > $2',
+      [resetToken, now]
+    );
+    
+    if (!tokenRecord) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+    
+    const newPasswordHash = hashPassword(newPassword);
+    
+    await dbAdapter.run(
+      'UPDATE users SET password_hash = $1 WHERE id = $2',
+      [newPasswordHash, tokenRecord.user_id]
+    );
+    
+    // Delete used token
+    await dbAdapter.run(
+      'DELETE FROM password_reset_tokens WHERE id = $1',
+      [tokenRecord.id]
+    );
+    
+    res.json({ ok: true, message: 'Password reset successful' });
+  } catch (error) {
+    res.status(500).json({ error: 'Password reset failed' });
   }
 });
 
@@ -401,7 +572,7 @@ app.put('/api/medications/:id', authenticateToken, async (req, res) => {
 
 app.delete('/api/medications/:id', authenticateToken, async (req, res) => {
   try {
-    await dbAdapter.get('DELETE FROM medications WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    await dbAdapter.run('DELETE FROM medications WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete medication' });
@@ -486,7 +657,7 @@ app.post('/api/access/grants', authenticateToken, async (req, res) => {
 // Revoke grant
 app.delete('/api/access/grants/:id', authenticateToken, async (req, res) => {
   try {
-    await dbAdapter.get('DELETE FROM access_grants WHERE id = $1 AND patient_id = $2', [req.params.id, req.user.id]);
+    await dbAdapter.run('DELETE FROM access_grants WHERE id = $1 AND patient_id = $2', [req.params.id, req.user.id]);
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: 'Failed to revoke access grant' });
@@ -531,3 +702,6 @@ app.get('/api/access/patient/:patientId/records', authenticateToken, async (req,
 app.get('*', (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
+
+// Start the app (after all middleware and routes are set up)
+startServer();
