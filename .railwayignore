@@ -1,0 +1,83 @@
+# Railway ignore file - excludes files from deployment
+
+# Documentation (keep minimal)
+*.md
+DEPLOYMENT*.md
+PRODUCTION*.md
+RAILWAY*.md
+*.txt
+LOCAL-*.md
+QUICK-*.md
+
+# Development files
+.devcontainer/
+.vscode/
+node_modules/
+.env.example
+.hintrc
+wrangler.toml
+netlify.toml
+docker-compose.local.yml
+
+# Frontend (served as static, not needed in backend service)
+*.html
+styles.css
+theme.js
+nav.js
+api-client.js
+encryption-client.js
+auth.js
+archive.js
+debug-banner.js
+voice-input.js
+migrate-to-api.js
+news2.js
+
+# Frontend pages and scripts
+admin.js
+appointments.js
+dashboard.js
+documents.js
+exercises.js
+fluids.js
+foods.js
+history.js
+holiday.js
+med_log.js
+medical-history.js
+meds_*.js
+missed_meds.js
+personal.js
+search.js
+sidebar-nav.js
+symptoms.js
+
+# Images and assets
+*.png
+*.webp
+*.ini
+*.log
+outline.png
+
+# Git
+.git
+.gitignore
+
+# OS
+.DS_Store
+
+# Tests
+test-*.js
+test-*.bat
+test-*.ps1
+
+# Deploy folder (not needed for backend-only Railway service)
+deploy/
+scripts/
+
+# Keep only backend/
+!backend/
+!.env
+!Procfile
+!package.json
+!railway.json
